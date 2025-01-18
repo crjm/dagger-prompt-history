@@ -1,0 +1,34 @@
+import anthropic
+import os
+import sys
+import json
+from typing import Optional, List, Dict
+
+client = anthropic.Anthropic(
+    api_key=os.environ['ANTHROPIC_API_KEY']
+)
+
+def response() -> None:
+    # Get messages from file and add user prompt
+    messages_json = sys.argv[1] if len(sys.argv) > 1 else None
+    if not messages_json:
+        raise ValueError("Please provide messages as a JSON string argument")
+    
+    messages = json.loads(messages_json)
+
+    # error if not valid json
+    if not isinstance(messages, list):
+        raise ValueError("Messages must be a valid JSON list")
+
+    print("sending request with messages:", messages)
+
+    message = client.messages.create(
+        model="claude-3-opus-20240229",
+        max_tokens=1024,
+        messages=messages
+    )
+
+    print(message.content[0].text)
+
+if __name__ == "__main__":
+    response()
