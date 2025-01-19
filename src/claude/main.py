@@ -23,10 +23,9 @@ class Claude:
     async def request(self, 
                       dir: dagger.Directory, 
                       prompt: Annotated[str, "The prompt to send to the Anthropic API"] | None,
-                      file: Annotated[str, "The path to the file containing the prompt to send to the Anthropic API"] | None,
                       api_key: dagger.Secret) -> str:
         """Makes a call to the Anthropic API and returns the response"""
-        input = load_input(prompt, file)
+        input = load_input(prompt)
         if isinstance(input, ValueError):
             raise ValueError("The file is not a valid list of MessageParam")
         
@@ -49,21 +48,13 @@ class Claude:
                    dir: dagger.Directory,
                    prompt: Annotated[str, "The prompt to send to the Anthropic API"] | None,
                    role: Annotated[str, "The role of the user"] | None,
-                   file: Annotated[str, "The path to the file containing the prompt to send to the Anthropic API"] | None,
-                   api_key: dagger.Secret,
-                   model: Optional[str] = "claude-3-opus-20240229") -> str:
+                   api_key: dagger.Secret) -> str:
         """Simplified interface for chatting with Claude"""
-        return await self.request(dir, prompt, file, api_key, role)
+        return await self.request(dir, prompt, api_key)
     
-def load_input(prompt: str | None, file: str | None, role: Optional[str] = "user") -> str | ValueError:
+def load_input(prompt: str | None, role: Optional[str] = "user") -> str | ValueError:
     if prompt:
         return json.dumps([{"role": role, "content": prompt}])
-    elif file:
-        with open(file, 'r') as file:
-            if validate_json_contents(file.read()):
-                return file.read()
-            else:
-                raise ValueError("The file is not a valid list of MessageParam")
     else:
         raise ValueError("Either prompt or file must be provided")
     

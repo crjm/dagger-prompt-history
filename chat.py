@@ -1,4 +1,6 @@
 import anthropic
+from anthropic.types.text_block import TextBlock
+from anthropic.types.tool_use_block import ToolUseBlock
 import os
 import sys
 import json
@@ -28,7 +30,14 @@ def response() -> None:
         messages=messages
     )
 
-    print(message.content[0].text)
+    content = message.content[0]
+
+    if isinstance(content, TextBlock):
+        print(content.text)
+    elif isinstance(content, ToolUseBlock):
+        print(content.model_dump_json())
+    else:
+        print(content)
 
 if __name__ == "__main__":
     response()
