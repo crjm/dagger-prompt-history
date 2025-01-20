@@ -4,13 +4,13 @@ from anthropic.types.tool_use_block import ToolUseBlock
 import os
 import sys
 import json
-from typing import Optional, List, Dict
+from db import insert_conversation, dump_db_to_file
 
 client = anthropic.Anthropic(
     api_key=os.environ['ANTHROPIC_API_KEY']
 )
 
-def response() -> None:
+def response(filename: str) -> None:
     # Get messages from file and add user prompt
     messages_json = sys.argv[1] if len(sys.argv) > 1 else None
     if not messages_json:
@@ -34,10 +34,15 @@ def response() -> None:
 
     if isinstance(content, TextBlock):
         print(content.text)
+        insert_conversation(messages_json, content.text)
+        # dump_db_to_file(filename)
     elif isinstance(content, ToolUseBlock):
         print(content.model_dump_json())
+        insert_conversation(messages_json, content.model_dump_json())
+        # dump_db_to_file(filename)
     else:
         print(content)
+        raise ValueError("Unknown response content type")
 
 if __name__ == "__main__":
-    response()
+    response("conversations.json")
