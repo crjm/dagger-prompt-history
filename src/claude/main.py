@@ -9,8 +9,12 @@ import json
 # TODO:
 # Prompt Caching https://docs.anthropic.com/en/docs/build-with-claude/prompt-caching
 # Dependencies caching with mounted volume
+# Chat history persistence with TBD approach
+    # - Use a mounted volume - can't be used with export
+    # - Use a mounted directory
 
 MessageParam = Dict[str, str]  # type alias for {"role": str, "content": str}
+DB_PATH = "/app/db/data"
 
 @object_type
 class Claude:
@@ -22,20 +26,37 @@ class Claude:
     
     @function 
     async def base_container(self,
-                             dir: dagger.Directory) -> dagger.Container:
+                             dir: dagger.Directory,
+                             history: dagger.Directory) -> dagger.Container:
         """Base container for the Claude module"""
+
         deps = dag.cache_volume("pip")
+
         return await (
             dag.container()
             .from_("python:3.12.1")
             .with_directory("/app", dir)
             .with_mounted_cache("/root/.cache/pip", deps)
+            .with_mounted_directory(DB_PATH, history)
             .with_exec(["pip", "install", "anthropic"])
+            .with_exec(["python", "/app/db/main.py", "create_db_if_not_exists"])
         )
     
     @function
+    async def export_chat_history(self,
+                                  container: dagger.Container) -> dagger.Directory:
+        """Exports the chat history to a directory in the host machine.
+        
+        The directory is mounted in the container at {DB_PATH}
+        The host directory is passed as a CLI argument.
+        https://docs.dagger.io/cookbook/#export-a-directory-or-file-to-the-host
+        """
+        return container.directory(DB_PATH)
+        
+    @function
     async def request(self, 
                       dir: dagger.Directory, 
+                      history: dagger.Directory,
                       prompt: Annotated[str, "The prompt to send to the Anthropic API"] | None,
                       api_key: dagger.Secret) -> dagger.Container:
         """Makes a call to the Anthropic API and returns the response"""
@@ -43,38 +64,21 @@ class Claude:
         if isinstance(input, ValueError):
             raise ValueError("The file is not a valid list of MessageParam")
         
-        container = await self.base_container(dir)
+        container = await self.base_container(dir, history)
         container = container.with_secret_variable("ANTHROPIC_API_KEY", api_key)
         container = container.with_exec(["python", "/app/chat.py", input])
 
-        return await (
-            container
-        )
-
-    
-    @function
-    async def dump_db_to_file(self,
-                              container: dagger.Container) -> dagger.File:
-        """Dumps the database to a file"""
-        return await (
-            container
-            .with_workdir("/app/db")
-            .with_exec(["python", "main.py", "dump_db_to_file", "dump_db.json"])
-            .file("dump_db.json")
-        )
+        return container
 
     @function
     async def chat(self,
                    dir: dagger.Directory,
+                   history: dagger.Directory,
                    prompt: Annotated[str, "The prompt to send to the Anthropic API"] | None,
-                   role: Annotated[str, "The role of the user"] | None,
-                   api_key: dagger.Secret) -> str:
+                   api_key: dagger.Secret) -> dagger.Directory:
         """Simplified interface for chatting with Claude"""
-        container = await self.request(dir, prompt, api_key)
-        return await (
-            container
-            .stdout()
-        )
+        container = await self.request(dir, history, prompt, api_key)
+        return await self.export_chat_history(container)
     
 def load_input(prompt: str | None, role: Optional[str] = "user") -> str | ValueError:
     if prompt:

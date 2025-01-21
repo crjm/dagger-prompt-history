@@ -10,7 +10,7 @@ client = anthropic.Anthropic(
     api_key=os.environ['ANTHROPIC_API_KEY']
 )
 
-def response(filename: str) -> None:
+def response() -> None:
     # Get messages from file and add user prompt
     messages_json = sys.argv[1] if len(sys.argv) > 1 else None
     if not messages_json:
@@ -35,14 +35,12 @@ def response(filename: str) -> None:
     if isinstance(content, TextBlock):
         print(content.text)
         insert_conversation(messages_json, content.text)
-        # dump_db_to_file(filename)
     elif isinstance(content, ToolUseBlock):
         print(content.model_dump_json())
         insert_conversation(messages_json, content.model_dump_json())
-        # dump_db_to_file(filename)
     else:
         print(content)
         raise ValueError("Unknown response content type")
 
 if __name__ == "__main__":
-    response("conversations.json")
+    response()

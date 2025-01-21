@@ -1,1 +1,1 @@
-from .main import create_db, insert_conversation, get_conversation, dump_db_to_file
+from .main import create_db_if_not_exists, insert_conversation, get_conversation, dump_db_to_file
