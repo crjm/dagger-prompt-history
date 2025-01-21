@@ -8,10 +8,15 @@ import json
 
 # TODO:
 # Prompt Caching https://docs.anthropic.com/en/docs/build-with-claude/prompt-caching
-# Dependencies caching with mounted volume
+# Add a way to choose the model
+# Add a way to choose the temperature
+# Add a way to choose the max tokens
+# Add a way to pass a config file to avoid a lot of arguments in the CLI
+
+# Dependencies caching with mounted volume - done
 # Chat history persistence with TBD approach
-    # - Use a mounted volume - can't be used with export
-    # - Use a mounted directory
+    # - Use a mounted volume - can't be used with export - done
+    # - Use a mounted directory - done
 
 MessageParam = Dict[str, str]  # type alias for {"role": str, "content": str}
 DB_PATH = "/app/db/data"
@@ -38,7 +43,7 @@ class Claude:
             .with_directory("/app", dir)
             .with_mounted_cache("/root/.cache/pip", deps)
             .with_mounted_directory(DB_PATH, history)
-            .with_exec(["pip", "install", "anthropic"])
+            .with_exec(["pip", "install", "anthropic", "requests"])
             .with_exec(["python", "/app/db/main.py", "create_db_if_not_exists"])
         )
     
@@ -58,14 +63,16 @@ class Claude:
                       dir: dagger.Directory, 
                       history: dagger.Directory,
                       prompt: Annotated[str, "The prompt to send to the Anthropic API"] | None,
-                      api_key: dagger.Secret) -> dagger.Container:
-        """Makes a call to the Anthropic API and returns the response"""
+                      api_key: dagger.Secret,
+                      svc: dagger.Service) -> dagger.Container:
+        """Makes a call to the Anthropic API and returns a container with the response"""
         input = load_input(prompt)
         if isinstance(input, ValueError):
             raise ValueError("The file is not a valid list of MessageParam")
         
         container = await self.base_container(dir, history)
         container = container.with_secret_variable("ANTHROPIC_API_KEY", api_key)
+        container = container.with_service_binding("svc", svc).terminal()
         container = container.with_exec(["python", "/app/chat.py", input])
 
         return container
@@ -75,9 +82,10 @@ class Claude:
                    dir: dagger.Directory,
                    history: dagger.Directory,
                    prompt: Annotated[str, "The prompt to send to the Anthropic API"] | None,
+                   svc: dagger.Service,
                    api_key: dagger.Secret) -> dagger.Directory:
         """Simplified interface for chatting with Claude"""
-        container = await self.request(dir, history, prompt, api_key)
+        container = await self.request(dir, history, prompt, api_key, svc)
         return await self.export_chat_history(container)
     
 def load_input(prompt: str | None, role: Optional[str] = "user") -> str | ValueError:
