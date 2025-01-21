@@ -18,7 +18,6 @@ import json
     # - Use a mounted volume - can't be used with export - done
     # - Use a mounted directory - done
 
-MessageParam = Dict[str, str]  # type alias for {"role": str, "content": str}
 DB_PATH = "/app/db/data"
 
 @object_type
@@ -72,7 +71,7 @@ class Claude:
         
         container = await self.base_container(dir, history)
         container = container.with_secret_variable("ANTHROPIC_API_KEY", api_key)
-        container = container.with_service_binding("svc", svc).terminal()
+        container = container.with_service_binding("svc", svc)
         container = container.with_exec(["python", "/app/chat.py", input])
 
         return container

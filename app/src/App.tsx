@@ -11,9 +11,10 @@ function App() {
     queryKey: ['message'],
     // refetchInterval: 1000,
     queryFn: async () => {
-      const response = await fetch(API_URL)
-      console.log(response)
-      return response.json()
+      const response = await fetch(API_URL + '/events')
+      if (response.status === 200) {
+        return response.json()
+      }
     },
   })
 
