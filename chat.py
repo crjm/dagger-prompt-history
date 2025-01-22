@@ -36,7 +36,7 @@ def response() -> None:
     event = {
         "session_id": message.id,
         "messages": messages,
-        "response": None,
+        "response": [],
         "model": message.model,
         "stop_reason": message.stop_reason,
         "type": message.type,
@@ -46,21 +46,18 @@ def response() -> None:
         "output_tokens": message.usage.output_tokens
     }
 
-    content = message.content[0]
+    # Process all content blocks
+    for content in message.content:
+        if isinstance(content, (TextBlock, ToolUseBlock)):
+            content_json = content.model_dump_json()
+            print(content_json)
+            insert_conversation(input_json, content_json)
+            event["response"].append(json.loads(content_json))
+        else:
+            print(content)
+            raise ValueError(f"Unknown response content type: {type(content)}")
 
-    if isinstance(content, TextBlock):
-        print(content.text)
-        insert_conversation(input_json, content.text)
-        event["response"] = content.model_dump_json()
-        send_request(event)
-    elif isinstance(content, ToolUseBlock):
-        print(content.model_dump_json())
-        insert_conversation(input_json, content.model_dump_json())
-        event["response"] = content.model_dump_json()
-        send_request(event)
-    else:
-        print(content)
-        raise ValueError("Unknown response content type")
+    send_request(event)
 
 # send a request to the service
 

@@ -11,28 +11,31 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
-type Response struct {
-	Message string `json:"message"`
-}
-
 type Message struct {
 	Content string `json:"content"`
 	Role    string `json:"role"`
 }
 
+type ModelResponseContent struct {
+	Type  string `json:"type"`
+	Text  string `json:"text,omitempty"`
+	Image string `json:"image,omitempty"`
+	// check if there are other types
+}
+
 type Event struct {
-	ID                   int       `json:"id"`
-	SessionID            string    `json:"session_id"`
-	Messages             []Message `json:"messages"`
-	Response             string    `json:"response"`
-	Model                string    `json:"model"`
-	StopReason           string    `json:"stop_reason"`
-	Content              string    `json:"content"`
-	Type                 string    `json:"type"`
-	Role                 string    `json:"role"`
-	CacheReadInputTokens int       `json:"cache_read_input_tokens"`
-	InputTokens          int       `json:"input_tokens"`
-	OutputTokens         int       `json:"output_tokens"`
+	ID                   int                    `json:"id"`
+	SessionID            string                 `json:"session_id"`
+	Messages             []Message              `json:"messages"`
+	Response             []ModelResponseContent `json:"response"`
+	Model                string                 `json:"model"`
+	StopReason           string                 `json:"stop_reason"`
+	Content              string                 `json:"content"`
+	Type                 string                 `json:"type"`
+	Role                 string                 `json:"role"`
+	CacheReadInputTokens int                    `json:"cache_read_input_tokens"`
+	InputTokens          int                    `json:"input_tokens"`
+	OutputTokens         int                    `json:"output_tokens"`
 }
 
 var db *sql.DB
@@ -125,7 +128,7 @@ func handlePostRequest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	log.Info().Str("messages", fmt.Sprintf("%+v", event.Messages)).Str("response", event.Response).Msg(fmt.Sprintf("Event received: %+v", event))
+	log.Info().Str("messages", fmt.Sprintf("%+v", event.Messages)).Str("response", fmt.Sprintf("%+v", event.Response)).Msg(fmt.Sprintf("Event received: %+v", event))
 
 	messages, err := json.Marshal(event.Messages)
 	if err != nil {
@@ -160,7 +163,6 @@ func handlePostRequest(w http.ResponseWriter, r *http.Request) {
 	}
 
 	log.Info().Msg("Event stored successfully")
-	json.NewEncoder(w).Encode(Response{Message: "Event stored successfully"})
 }
 
 // get all events
@@ -177,12 +179,13 @@ func getEvents(w http.ResponseWriter) {
 	for rows.Next() {
 		var event Event
 		var messagesStr string
+		var responseStr string
 		var createdAt time.Time
 		err := rows.Scan(
 			&event.ID,
 			&event.SessionID,
 			&messagesStr,
-			&event.Response,
+			&responseStr,
 			&event.Model,
 			&event.StopReason,
 			&event.Content,
@@ -207,6 +210,14 @@ func getEvents(w http.ResponseWriter) {
 			continue
 		}
 		event.Messages = messages
+
+		var response []ModelResponseContent
+		err = json.Unmarshal([]byte(responseStr), &response)
+		if err != nil {
+			log.Error().Err(err).Msg("Failed to unmarshal model response")
+			continue
+		}
+		event.Response = response
 
 		events = append(events, event)
 	}
