@@ -34,6 +34,7 @@ def response() -> None:
     )
 
     event = {
+        "dagger_trace_id": None,
         "session_id": message.id,
         "messages": messages,
         "response": [],
@@ -45,6 +46,10 @@ def response() -> None:
         "input_tokens": message.usage.input_tokens,
         "output_tokens": message.usage.output_tokens
     }
+
+    trace_id = os.environ.get("TRACEPARENT")
+    if trace_id:
+        event["dagger_trace_id"] = trace_id.split("-")[1]
 
     # Process all content blocks
     for content in message.content:

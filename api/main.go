@@ -25,6 +25,7 @@ type ModelResponseContent struct {
 
 type Event struct {
 	ID                   int                    `json:"id"`
+	DaggerTraceID        string                 `json:"dagger_trace_id"`
 	SessionID            string                 `json:"session_id"`
 	Messages             []Message              `json:"messages"`
 	Response             []ModelResponseContent `json:"response"`
@@ -36,6 +37,7 @@ type Event struct {
 	CacheReadInputTokens int                    `json:"cache_read_input_tokens"`
 	InputTokens          int                    `json:"input_tokens"`
 	OutputTokens         int                    `json:"output_tokens"`
+	CreatedAt            time.Time              `json:"created_at"`
 }
 
 var db *sql.DB
@@ -72,6 +74,7 @@ func main() {
 	_, err = db.Exec(`
 		CREATE TABLE IF NOT EXISTS events (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			dagger_trace_id TEXT NOT NULL,
 			session_id UUID NOT NULL,
 			messages TEXT NOT NULL,
 			response TEXT NOT NULL,
@@ -144,7 +147,8 @@ func handlePostRequest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// Insert event into database
-	_, err = db.Exec("INSERT INTO events (session_id, messages, response, model, stop_reason, content, type, role, cache_read_input_tokens, input_tokens, output_tokens) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+	_, err = db.Exec("INSERT INTO events (dagger_trace_id, session_id, messages, response, model, stop_reason, content, type, role, cache_read_input_tokens, input_tokens, output_tokens) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+		event.DaggerTraceID,
 		event.SessionID,
 		string(messages),
 		string(response),
@@ -180,9 +184,9 @@ func getEvents(w http.ResponseWriter) {
 		var event Event
 		var messagesStr string
 		var responseStr string
-		var createdAt time.Time
 		err := rows.Scan(
 			&event.ID,
+			&event.DaggerTraceID,
 			&event.SessionID,
 			&messagesStr,
 			&responseStr,
@@ -194,7 +198,7 @@ func getEvents(w http.ResponseWriter) {
 			&event.CacheReadInputTokens,
 			&event.InputTokens,
 			&event.OutputTokens,
-			&createdAt,
+			&event.CreatedAt,
 		)
 		if err != nil {
 			log.Error().Err(err).Msg("Failed to scan row")
